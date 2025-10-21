@@ -6,6 +6,7 @@ use nu_protocol::{
 use std::io::Read;
 use std::path::Path;
 use std::sync::mpsc;
+use std::time::Duration;
 
 use crate::HttpServePlugin;
 
@@ -80,14 +81,22 @@ fn serve(
     let is_tcp = socket_path.starts_with(':') ||
                  socket_path.contains(':') && socket_path.split(':').last().unwrap_or("").parse::<u16>().is_ok();
 
+    eprintln!("DEBUG: Creating server for {}...", socket_path);
+
     let server = if is_tcp {
         // TCP socket
-        tiny_http::Server::http(&socket_path)
-            .map_err(|e| LabeledError::new(format!("Failed to bind to TCP {}: {}", socket_path, e)))?
+        eprintln!("DEBUG: Binding TCP socket...");
+        let srv = tiny_http::Server::http(&socket_path)
+            .map_err(|e| LabeledError::new(format!("Failed to bind to TCP {}: {}", socket_path, e)))?;
+        eprintln!("DEBUG: TCP socket bound successfully");
+        srv
     } else {
         // Unix socket
-        tiny_http::Server::http_unix(Path::new(&socket_path))
-            .map_err(|e| LabeledError::new(format!("Failed to bind to Unix socket {}: {}", socket_path, e)))?
+        eprintln!("DEBUG: Binding Unix socket...");
+        let srv = tiny_http::Server::http_unix(Path::new(&socket_path))
+            .map_err(|e| LabeledError::new(format!("Failed to bind to Unix socket {}: {}", socket_path, e)))?;
+        eprintln!("DEBUG: Unix socket bound successfully");
+        srv
     };
 
     if is_tcp {
@@ -95,6 +104,8 @@ fn serve(
     } else {
         eprintln!("Listening on {} (Unix socket)", socket_path);
     }
+
+    eprintln!("DEBUG: Entering accept loop...");
 
     // Accept connections in a loop
     loop {
@@ -104,9 +115,11 @@ fn serve(
             break;
         }
 
-        // Try to receive a request (with timeout to allow checking shutdown signal)
-        match server.try_recv() {
+        // Blocking receive with timeout - responsive to Ctrl-C, zero request latency
+        match server.recv_timeout(Duration::from_millis(100)) {
             Ok(Some(request)) => {
+                eprintln!("DEBUG: Received request!");
+
                 // Spawn a thread to handle this request
                 let engine = engine.clone();
                 let closure = closure.clone();
@@ -116,15 +129,16 @@ fn serve(
                 });
             }
             Ok(None) => {
-                // No request available, sleep briefly
-                std::thread::sleep(std::time::Duration::from_millis(10));
+                // Timeout - loop continues, will check shutdown signal
             }
             Err(e) => {
                 eprintln!("Error receiving request: {}", e);
+                break;
             }
         }
     }
 
+    eprintln!("DEBUG: Exited accept loop");
     Ok(())
 }
 
