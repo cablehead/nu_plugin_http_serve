@@ -896,6 +896,7 @@ version = "0.1.0"
 dependencies = [
  "nu-plugin",
  "nu-protocol",
+ "serde_json",
  "tiny_http",
 ]
 
