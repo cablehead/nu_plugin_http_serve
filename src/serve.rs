@@ -25,9 +25,9 @@ impl PluginCommand for HttpServe {
     fn signature(&self) -> Signature {
         Signature::build(PluginCommand::name(self))
             .required(
-                "path",
+                "address",
                 SyntaxShape::String,
-                "Unix socket path to bind to (e.g., ./server.sock)",
+                "Address to bind to: TCP (e.g., ':3000', '127.0.0.1:8080') or Unix socket (e.g., './server.sock')",
             )
             .required(
                 "closure",
@@ -75,11 +75,26 @@ fn serve(
     shutdown_rx: mpsc::Receiver<()>,
     _guard: nu_protocol::HandlerGuard,
 ) -> Result<(), LabeledError> {
-    // Create Unix socket server
-    let server = tiny_http::Server::http_unix(Path::new(&socket_path))
-        .map_err(|e| LabeledError::new(format!("Failed to bind to socket: {}", e)))?;
+    // Detect TCP vs Unix socket
+    // TCP: starts with ':' (e.g., ':3000') or contains ':' followed by digits (e.g., '127.0.0.1:8080')
+    let is_tcp = socket_path.starts_with(':') ||
+                 socket_path.contains(':') && socket_path.split(':').last().unwrap_or("").parse::<u16>().is_ok();
 
-    eprintln!("Listening on {}", socket_path);
+    let server = if is_tcp {
+        // TCP socket
+        tiny_http::Server::http(&socket_path)
+            .map_err(|e| LabeledError::new(format!("Failed to bind to TCP {}: {}", socket_path, e)))?
+    } else {
+        // Unix socket
+        tiny_http::Server::http_unix(Path::new(&socket_path))
+            .map_err(|e| LabeledError::new(format!("Failed to bind to Unix socket {}: {}", socket_path, e)))?
+    };
+
+    if is_tcp {
+        eprintln!("Listening on http://{}", socket_path);
+    } else {
+        eprintln!("Listening on {} (Unix socket)", socket_path);
+    }
 
     // Accept connections in a loop
     loop {
