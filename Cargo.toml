@@ -1,0 +1,9 @@
+[package]
+name = "nu_plugin_http_serve"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tiny_http = { path = "../tiny-http" }
+nu-plugin = { path = "../nushell/crates/nu-plugin" }
+nu-protocol = { path = "../nushell/crates/nu-protocol" }
