@@ -114,13 +114,13 @@ fn serve(
 
 /// Handle a single HTTP request
 fn handle_request(
-    engine: EngineInterface,
+    _engine: EngineInterface,
     span: Span,
-    closure: Spanned<Closure>,
+    _closure: Spanned<Closure>,
     request: tiny_http::Request,
 ) {
     // Convert HTTP request to Nu Value
-    let request_value = request_to_value(&request, span);
+    let _request_value = request_to_value(&request, span);
 
     // TODO (nushell-8): Evaluate closure with request and send response
     // For now, just send a placeholder response
