@@ -82,7 +82,7 @@ fn serve(
         || socket_path.contains(':')
             && socket_path
                 .split(':')
-                .last()
+                .next_back()
                 .unwrap_or("")
                 .parse::<u16>()
                 .is_ok();
