@@ -11,3 +11,6 @@ serde_json = "1.0"
 
 [dev-dependencies]
 nu-plugin-test-support = { path = "../nushell/crates/nu-plugin-test-support" }
+
+[target.'cfg(windows)'.dev-dependencies]
+uds_windows = "1.1"

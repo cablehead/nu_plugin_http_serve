@@ -1040,6 +1040,7 @@ dependencies = [
  "nu-protocol",
  "serde_json",
  "tiny_http",
+ "uds_windows",
 ]
 
 [[package]]
