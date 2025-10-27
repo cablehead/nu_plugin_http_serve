@@ -128,18 +128,21 @@ fn test_tcp_echo_path() -> Result<(), ShellError> {
 
 #[test]
 fn test_unix_socket_basic_request() -> Result<(), ShellError> {
-    let socket_path = "/tmp/nu_http_test.sock";
-    // Clean up any existing socket
-    let _ = std::fs::remove_file(socket_path);
+    // Use platform-appropriate temp directory
+    let socket_path = std::env::temp_dir().join("nu_http_test.sock");
+    let socket_path_str = socket_path.to_string_lossy().to_string();
 
-    let server = PluginTestServer::new(socket_path, r#"{|req| "Unix Socket Works!"}"#)?;
+    // Clean up any existing socket
+    let _ = std::fs::remove_file(&socket_path);
+
+    let server = PluginTestServer::new(&socket_path_str, r#"{|req| "Unix Socket Works!"}"#)?;
 
     let response = server.request_unix("/").expect("Failed to send request");
     assert!(response.contains("HTTP/1.1 200"));
     assert!(response.contains("Unix Socket Works!"));
 
     // Clean up
-    let _ = std::fs::remove_file(socket_path);
+    let _ = std::fs::remove_file(&socket_path);
     Ok(())
 }
 
