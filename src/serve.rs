@@ -78,23 +78,34 @@ fn serve(
 ) -> Result<(), LabeledError> {
     // Detect TCP vs Unix socket
     // TCP: starts with ':' (e.g., ':3000') or contains ':' followed by digits (e.g., '127.0.0.1:8080')
-    let is_tcp = socket_path.starts_with(':') ||
-                 socket_path.contains(':') && socket_path.split(':').last().unwrap_or("").parse::<u16>().is_ok();
+    let is_tcp = socket_path.starts_with(':')
+        || socket_path.contains(':')
+            && socket_path
+                .split(':')
+                .last()
+                .unwrap_or("")
+                .parse::<u16>()
+                .is_ok();
 
     eprintln!("DEBUG: Creating server for {}...", socket_path);
 
     let server = if is_tcp {
         // TCP socket
         eprintln!("DEBUG: Binding TCP socket...");
-        let srv = tiny_http::Server::http(&socket_path)
-            .map_err(|e| LabeledError::new(format!("Failed to bind to TCP {}: {}", socket_path, e)))?;
+        let srv = tiny_http::Server::http(&socket_path).map_err(|e| {
+            LabeledError::new(format!("Failed to bind to TCP {}: {}", socket_path, e))
+        })?;
         eprintln!("DEBUG: TCP socket bound successfully");
         srv
     } else {
         // Unix socket
         eprintln!("DEBUG: Binding Unix socket...");
-        let srv = tiny_http::Server::http_unix(Path::new(&socket_path))
-            .map_err(|e| LabeledError::new(format!("Failed to bind to Unix socket {}: {}", socket_path, e)))?;
+        let srv = tiny_http::Server::http_unix(Path::new(&socket_path)).map_err(|e| {
+            LabeledError::new(format!(
+                "Failed to bind to Unix socket {}: {}",
+                socket_path, e
+            ))
+        })?;
         eprintln!("DEBUG: Unix socket bound successfully");
         srv
     };
@@ -224,12 +235,13 @@ fn request_to_value(request: &tiny_http::Request, span: Span) -> Value {
 }
 
 /// Convert PipelineData to tiny_http::Response
-fn pipeline_data_to_response(pipeline_data: PipelineData, _span: Span) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
+fn pipeline_data_to_response(
+    pipeline_data: PipelineData,
+    _span: Span,
+) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
     match pipeline_data {
         // Empty or Nothing -> 204 No Content with empty body
-        PipelineData::Empty => {
-            tiny_http::Response::from_data(Vec::new()).with_status_code(204)
-        }
+        PipelineData::Empty => tiny_http::Response::from_data(Vec::new()).with_status_code(204),
 
         // Value -> serialize to bytes
         PipelineData::Value(value, meta) => {
@@ -269,36 +281,35 @@ fn pipeline_data_to_response(pipeline_data: PipelineData, _span: Span) -> tiny_h
                 body.push(b'\n'); // Separate items with newlines
             }
             let content_type = infer_content_type(&meta, Some("application/json"));
-            tiny_http::Response::from_data(body)
-                .with_header(content_type_header(&content_type))
+            tiny_http::Response::from_data(body).with_header(content_type_header(&content_type))
         }
 
         // ByteStream -> stream to response
-        PipelineData::ByteStream(stream, meta) => {
-            match stream.reader() {
-                Some(mut reader) => {
-                    let mut body = Vec::new();
-                    if let Err(e) = reader.read_to_end(&mut body) {
-                        eprintln!("Error reading ByteStream: {}", e);
-                        return tiny_http::Response::from_string(format!("Error: {}", e))
-                            .with_status_code(500);
-                    }
-                    let content_type = infer_content_type(&meta, Some("application/octet-stream"));
-                    tiny_http::Response::from_data(body)
-                        .with_header(content_type_header(&content_type))
+        PipelineData::ByteStream(stream, meta) => match stream.reader() {
+            Some(mut reader) => {
+                let mut body = Vec::new();
+                if let Err(e) = reader.read_to_end(&mut body) {
+                    eprintln!("Error reading ByteStream: {}", e);
+                    return tiny_http::Response::from_string(format!("Error: {}", e))
+                        .with_status_code(500);
                 }
-                None => {
-                    eprintln!("ByteStream has no reader");
-                    tiny_http::Response::from_string("Error: ByteStream has no reader")
-                        .with_status_code(500)
-                }
+                let content_type = infer_content_type(&meta, Some("application/octet-stream"));
+                tiny_http::Response::from_data(body).with_header(content_type_header(&content_type))
             }
-        }
+            None => {
+                eprintln!("ByteStream has no reader");
+                tiny_http::Response::from_string("Error: ByteStream has no reader")
+                    .with_status_code(500)
+            }
+        },
     }
 }
 
 /// Infer content-type from metadata or use default
-fn infer_content_type(meta: &Option<nu_protocol::PipelineMetadata>, default: Option<&str>) -> String {
+fn infer_content_type(
+    meta: &Option<nu_protocol::PipelineMetadata>,
+    default: Option<&str>,
+) -> String {
     meta.as_ref()
         .and_then(|m| m.content_type.as_ref())
         .map(|s| s.to_string())
@@ -323,11 +334,9 @@ fn value_to_bytes(value: Value) -> Vec<u8> {
         Value::Bool { val, .. } => val.to_string().into_bytes(),
 
         // Lists and Records -> JSON (following http-nu pattern)
-        Value::List { .. } | Value::Record { .. } => {
-            serde_json::to_string(&value_to_json(&value))
-                .unwrap_or_else(|_| String::new())
-                .into_bytes()
-        }
+        Value::List { .. } | Value::Record { .. } => serde_json::to_string(&value_to_json(&value))
+            .unwrap_or_else(|_| String::new())
+            .into_bytes(),
 
         _ => format!("{:?}", value).into_bytes(),
     }
