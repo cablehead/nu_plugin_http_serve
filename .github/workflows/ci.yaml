@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: Checkout plugin
+      uses: actions/checkout@v4
+      with:
+        path: nu_plugin_http_serve
+
+    - name: Checkout nushell
+      uses: actions/checkout@v4
+      with:
+        repository: nushell/nushell
+        path: nushell
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache target directory
+      uses: actions/cache@v4
+      with:
+        path: nu_plugin_http_serve/target
+        key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Check formatting
+      working-directory: nu_plugin_http_serve
+      run: cargo fmt --check
+
+    - name: Run clippy
+      working-directory: nu_plugin_http_serve
+      run: cargo clippy -- -D warnings
+
+    - name: Run tests
+      working-directory: nu_plugin_http_serve
+      run: cargo test
