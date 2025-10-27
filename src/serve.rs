@@ -180,8 +180,8 @@ fn handle_request(
     // Convert HTTP request to Nu Value
     let request_value = request_to_value(&request, span);
 
-    // Evaluate closure with request value using cloned engine state for concurrency
-    let result = engine.eval_closure_cloned_with_stream(
+    // Evaluate closure with request value
+    let result = engine.eval_closure_with_stream(
         &closure,
         vec![request_value],
         PipelineData::Empty,
