@@ -89,6 +89,22 @@ fn serve(
 
     eprintln!("DEBUG: Creating server for {}...", socket_path);
 
+    // Resolve Unix socket path relative to caller's working directory
+    let resolved_socket_path = if !is_tcp && !socket_path.starts_with('/') {
+        let cwd = engine
+            .get_current_dir()
+            .map_err(|e| LabeledError::new(format!("Failed to get current directory: {}", e)))?;
+        let resolved = Path::new(&cwd).join(&socket_path);
+        eprintln!(
+            "DEBUG: Resolved relative path '{}' to '{}'",
+            socket_path,
+            resolved.display()
+        );
+        resolved.to_string_lossy().to_string()
+    } else {
+        socket_path.clone()
+    };
+
     let server = if is_tcp {
         // TCP socket
         eprintln!("DEBUG: Binding TCP socket...");
@@ -100,10 +116,11 @@ fn serve(
     } else {
         // Unix socket
         eprintln!("DEBUG: Binding Unix socket...");
-        let srv = tiny_http::Server::http_unix(Path::new(&socket_path)).map_err(|e| {
+        eprintln!("DEBUG: Using path: {}", resolved_socket_path);
+        let srv = tiny_http::Server::http_unix(Path::new(&resolved_socket_path)).map_err(|e| {
             LabeledError::new(format!(
                 "Failed to bind to Unix socket {}: {}",
-                socket_path, e
+                resolved_socket_path, e
             ))
         })?;
         eprintln!("DEBUG: Unix socket bound successfully");
@@ -113,7 +130,7 @@ fn serve(
     if is_tcp {
         eprintln!("Listening on http://{}", socket_path);
     } else {
-        eprintln!("Listening on {} (Unix socket)", socket_path);
+        eprintln!("Listening on {} (Unix socket)", resolved_socket_path);
     }
 
     eprintln!("DEBUG: Entering accept loop...");
