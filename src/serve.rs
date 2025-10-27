@@ -78,6 +78,7 @@ fn serve(
 ) -> Result<(), LabeledError> {
     // Detect TCP vs Unix socket
     // TCP: starts with ':' (e.g., ':3000') or contains ':' followed by digits (e.g., '127.0.0.1:8080')
+    // Note: On Windows, need to exclude drive letter paths (e.g., 'C:\path')
     let is_tcp = socket_path.starts_with(':')
         || socket_path.contains(':')
             && socket_path
@@ -88,9 +89,12 @@ fn serve(
                 .is_ok();
 
     eprintln!("DEBUG: Creating server for {}...", socket_path);
+    eprintln!("DEBUG: is_tcp = {}", is_tcp);
 
     // Resolve Unix socket path relative to caller's working directory
-    let resolved_socket_path = if !is_tcp && !socket_path.starts_with('/') {
+    // Use Path::is_absolute() for cross-platform absolute path detection
+    let path_obj = Path::new(&socket_path);
+    let resolved_socket_path = if !is_tcp && !path_obj.is_absolute() {
         let cwd = engine
             .get_current_dir()
             .map_err(|e| LabeledError::new(format!("Failed to get current directory: {}", e)))?;
@@ -102,6 +106,7 @@ fn serve(
         );
         resolved.to_string_lossy().to_string()
     } else {
+        eprintln!("DEBUG: Using absolute path: {}", socket_path);
         socket_path.clone()
     };
 
