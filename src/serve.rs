@@ -88,9 +88,6 @@ fn serve(
                 .parse::<u16>()
                 .is_ok();
 
-    eprintln!("DEBUG: Creating server for {}...", socket_path);
-    eprintln!("DEBUG: is_tcp = {}", is_tcp);
-
     // Resolve Unix socket path relative to caller's working directory
     // Use Path::is_absolute() for cross-platform absolute path detection
     let path_obj = Path::new(&socket_path);
@@ -99,37 +96,24 @@ fn serve(
             .get_current_dir()
             .map_err(|e| LabeledError::new(format!("Failed to get current directory: {}", e)))?;
         let resolved = Path::new(&cwd).join(&socket_path);
-        eprintln!(
-            "DEBUG: Resolved relative path '{}' to '{}'",
-            socket_path,
-            resolved.display()
-        );
         resolved.to_string_lossy().to_string()
     } else {
-        eprintln!("DEBUG: Using absolute path: {}", socket_path);
         socket_path.clone()
     };
 
     let server = if is_tcp {
         // TCP socket
-        eprintln!("DEBUG: Binding TCP socket...");
-        let srv = tiny_http::Server::http(&socket_path).map_err(|e| {
+        tiny_http::Server::http(&socket_path).map_err(|e| {
             LabeledError::new(format!("Failed to bind to TCP {}: {}", socket_path, e))
-        })?;
-        eprintln!("DEBUG: TCP socket bound successfully");
-        srv
+        })?
     } else {
         // Unix socket
-        eprintln!("DEBUG: Binding Unix socket...");
-        eprintln!("DEBUG: Using path: {}", resolved_socket_path);
-        let srv = tiny_http::Server::http_unix(Path::new(&resolved_socket_path)).map_err(|e| {
+        tiny_http::Server::http_unix(Path::new(&resolved_socket_path)).map_err(|e| {
             LabeledError::new(format!(
                 "Failed to bind to Unix socket {}: {}",
                 resolved_socket_path, e
             ))
-        })?;
-        eprintln!("DEBUG: Unix socket bound successfully");
-        srv
+        })?
     };
 
     if is_tcp {
@@ -137,8 +121,6 @@ fn serve(
     } else {
         eprintln!("Listening on {} (Unix socket)", resolved_socket_path);
     }
-
-    eprintln!("DEBUG: Entering accept loop...");
 
     // Accept connections in a loop
     loop {
@@ -151,8 +133,6 @@ fn serve(
         // Blocking receive with timeout - responsive to Ctrl-C, zero request latency
         match server.recv_timeout(Duration::from_millis(100)) {
             Ok(Some(request)) => {
-                eprintln!("DEBUG: Received request!");
-
                 // Spawn a thread to handle this request
                 let engine = engine.clone();
                 let closure = closure.clone();
@@ -171,7 +151,6 @@ fn serve(
         }
     }
 
-    eprintln!("DEBUG: Exited accept loop");
     Ok(())
 }
 
